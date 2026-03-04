@@ -1,0 +1,62 @@
+name: LLMOps Quality Gate Demo
+
+# 1. 이 워크플로가 '언제' 실행될 것인가? (Trigger)
+# 개발자가 main 브랜치에 코드를 'Push' 할 때마다 실행됩니다.
+on:
+  push:
+    branches: [ "main" ]
+
+# 2. 어떤 '작업(Jobs)'들을 할 것인가?
+jobs:
+  run-evaluation:
+    # GitHub이 제공하는 가상의 우분투(Ubuntu) 서버 환경에서 실행합니다.
+    runs-on: ubuntu-latest 
+
+    # 3. 세부 실행 '단계(Steps)' 정의
+    # [🔥 uses 란?]
+    # 마치 요리할 때 '밀키트'를 사오고, 파이썬에서 'import pandas'를 하듯이,
+    # 복잡한 서버 접속/배포 명령어 수십 줄을 다 치는 것이 아니라, 
+    # 다른 사람들이 만들어둔 '배포용 레고 블록(밀키트)'을 가져와서 쓰는 문법이 바로 uses 입니다.
+    # =========================================================================
+    steps:
+    # Step 1: GitHub 서버가 방금 Push된 우리 코드를 다운로드(Checkout) 받아옵니다.
+    - name: 📦 저장소 코드 가져오기
+      uses: actions/checkout@v3
+
+    # Step 2: 코드를 실행하기 위해 파이썬 환경을 설치합니다.
+    - name: 🐍 파이썬 3.10 설치
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    # Step 3: 핵심! 우리의 평가 스크립트를 실행합니다.
+    # 만약 여기서 evaluate.py가 에러를 뿜고 죽으면(sys.exit(1)), 
+    # GitHub Action은 자동으로 실패(빨간 엑스 ❌) 처리되며 아래 단계는 실행되지 않습니다.
+    - name: 🧪 LLM 답변 품질 평가 (Quality Gate 검사)
+      run: python evaluate.py
+
+    # Step 4: 위 3번 단계를 무사히 통과(sys.exit(0)) 했을 때만 실행되는 배포 단계입니다.
+    # (평가 결과가 Fail이면 이 단계는 스킵됩니다)
+    - name: 🚢 운영 서버 배포 (가상 시뮬레이션)
+      run: |
+        echo "🚀 축하합니다! 평가를 무사히 통과했습니다."
+        echo "🚀 배포 시스템이 가동되어 새로운 프롬프트가 실제 고객 서비스에 반영되었습니다!"
+
+    # =========================================================================
+    # 💡 실제 서버 배포는 여기에 추가합니다!
+    # 만약 진짜 서버(예: AWS, Render, Heroku 등)에 배포해야 한다면, 위 가상 배포 단계 대신 
+    # 아래와 같이 각 클라우드 서비스에서 제공하는 "미리 만들어진 배포용 Action 템플릿"을 가져다 씁니다.
+    
+    # - name: ☁️ 진짜 운영 서버(예: Render)로 코드 전송 및 배포
+    #   uses: johnbeynon/render-deploy-action@v0.0.8    # <-- Render 배포용 밀키트 가져오기!
+    #   with:  # <-- 밀키트에 내 입맛(내 서버 암호키)만 추가하기
+    #     service-id: ${{ secrets.RENDER_SERVICE_ID }}  # (서버 고유 ID)
+    #     api-key: ${{ secrets.RENDER_API_KEY }}        # (서버 접속용 암호키)
+
+    #     # [🔥 secrets 란?]
+    #     # 코드 파일에 직접 암호를 쓰면 누구나 볼 수 있어 해킹의 위험이 큽니다.
+    #     # 따라서 GitHub 저장소 설정 탭의 '비밀 금고(Secrets)'에 진짜 암호를 숨겨두고,
+    #     # 워크플로에서는 "${{ secrets.암호이름 }}" 기호를 써서 "실행할 때 금고에서 꺼내 써라"고 명령하는 것입니다.
+
+    # 👉 이렇게 적어두면 GitHub이 알아서 해당 밀키트(보이지 않는 봇)에게 금고 속 암호를 쥐여주고
+    #    우리의 새로운 코드를 서버에 밀어 넣게 됩니다.
